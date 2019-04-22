@@ -19,24 +19,11 @@ class Slice2D:
 		self.gtube = GuideTube(self.pincell)
 	
 	def get_lattice(self):
-		# TODO add control rods
 		upin = self.pincell.build()
 		ugtb = self.gtube.build()
 		hlat = openmc.HexLattice()
 		hlat.pitch = [self.pitch]*2
-		'''
-		hlat.universes = \
-			[
-				[[ugtb] + [upin]*12],
-				[[upin]*13],
-				[[upin] + [ugtb] + [upin]*11],
-				[[upin]*13],
-				[[upin]*2 + [ugtb] + [upin]*10],
-				[[upin]*13],
-				[[upin]*3 + [ugtb] + [upin]*9],
-				[[upin]*13],
-			]
-		'''
+
 		unis = [
 			[upin]*78,
 			[upin]*72,
@@ -84,8 +71,8 @@ class Slice2D:
 		zmin = openmc.ZPlane(z0=-10, boundary_type="periodic", name="ZMIN")
 		zmax = openmc.ZPlane(z0=+10, boundary_type="periodic", name="ZMAX")
 		
-		ru = openmc.Universe(0, name="root universe")
-		radialu = openmc.Universe(1, name="radial universe")
+		ru = openmc.Universe(name="root universe")
+		radialu = openmc.Universe(name="radial universe")
 		# Right slice
 		inner = openmc.Cell()
 		inner.region = -right_inner_wall
@@ -116,9 +103,9 @@ class Slice2D:
 		return [p1]
 	
 	def export_to_xml(self):
-		folder_name = "radius{radius:.2f}_pitch{pitch:.2f}/".format(**vars(self))
+		folder_name = "{clad_type}/radius{radius:.2f}_pitch{pitch:.2f}/".format(**vars(self))
 		if not os.path.isdir(folder_name):
-			os.mkdir(folder_name)
+			os.makedirs(folder_name)
 		self._geometry.export_to_xml(folder_name + "geometry.xml")
 		mfile = openmc.Materials()
 		for mat in all_materials.values():
@@ -137,6 +124,7 @@ class Slice2D:
 		sfile.inactive = 20
 		sfile.source = openmc.Source(space=Box([-RAD_MIN/2, -RAD_MAJ, -10], [RAD_MIN/2, 0, 10]))
 		sfile.export_to_xml(folder_name + "settings.xml")
+		print("Exported to:", folder_name)
 
 
 if __name__ == '__main__':
