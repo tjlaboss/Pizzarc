@@ -1,0 +1,145 @@
+import os
+import openmc
+from openmc.stats import Box
+from materials import all_materials, colormap
+from constants import *
+from pincell import Pincell, GuideTube
+from math import *
+
+
+class Slice2D:
+	def __init__(self, radius, pitch, clad_type, matdict=all_materials):
+		assert clad_type in CLADS
+		self.radius = radius
+		self.pitch = pitch
+		self.clad_type = clad_type
+		self.matdict = matdict
+		self._geometry = None
+		self.pincell = Pincell(self.radius, self.clad_type, self.matdict)
+		self.gtube = GuideTube(self.pincell)
+	
+	def get_lattice(self):
+		# TODO add control rods
+		upin = self.pincell.build()
+		ugtb = self.gtube.build()
+		hlat = openmc.HexLattice()
+		hlat.pitch = [self.pitch]*2
+		'''
+		hlat.universes = \
+			[
+				[[ugtb] + [upin]*12],
+				[[upin]*13],
+				[[upin] + [ugtb] + [upin]*11],
+				[[upin]*13],
+				[[upin]*2 + [ugtb] + [upin]*10],
+				[[upin]*13],
+				[[upin]*3 + [ugtb] + [upin]*9],
+				[[upin]*13],
+			]
+		'''
+		unis = [
+			[upin]*78,
+			[upin]*72,
+			[upin]*66,
+			[upin]*60,
+			[upin]*54,
+			[upin]*48,
+			[upin]*42,
+			[upin]*36,
+			[upin]*30,
+			[upin]*24,
+			[upin]*18,
+			[upin]*12,
+			[upin]*6,
+			[ugtb]
+		]
+		hlat.center = (0, -self.pitch*(len(unis) - 1), 0)
+		# Center row
+		unis[0][39] = ugtb
+		unis[6][21] = ugtb
+		unis[6][0] = ugtb
+		unis[0][0] = ugtb
+		# Next row
+		unis[0][33] = ugtb
+		unis[6][15] = ugtb
+		unis[6][6] = ugtb
+		# Corner
+		unis[0][26] = ugtb
+		
+		hlat.universes = [unis]
+		hlat.outer = upin
+		#print(hlat.show_indices(hlat.num_rings))
+		return hlat
+	
+	def build(self):
+		x0 = openmc.XPlane(x0=0, boundary_type="reflective")
+		
+		right_inner_wall = openmc.Plane(A=cos(pi/3), B=-cos(pi/6),
+		                                D=(RAD_MAJ - STEEL_THICK)*cos(pi/6))
+		right_outer_wall = openmc.Plane(A=cos(pi/3), B=-cos(pi/6),
+		                                D=RAD_MAJ*cos(pi/6))
+		right_refl_edge = openmc.Plane(boundary_type="reflective",
+		                        A=cos(pi/6), B=cos(pi/3), D=-GAP/2*cos(pi/6)*0)
+		ymin = openmc.YPlane(y0=-RAD_MAJ, boundary_type="vacuum", name="YMIN")
+		zmin = openmc.ZPlane(z0=-10, boundary_type="periodic", name="ZMIN")
+		zmax = openmc.ZPlane(z0=+10, boundary_type="periodic", name="ZMAX")
+		
+		ru = openmc.Universe(0, name="root universe")
+		radialu = openmc.Universe(1, name="radial universe")
+		# Right slice
+		inner = openmc.Cell()
+		inner.region = -right_inner_wall
+		inner.fill = self.get_lattice()
+		radialu.add_cell(inner)
+		rpv = openmc.Cell()
+		rpv.region = +right_inner_wall & -right_outer_wall
+		rpv.fill = all_materials["SS316"]
+		radialu.add_cell(rpv)
+		outside = openmc.Cell()
+		outside.region = +right_outer_wall
+		outside.fill = all_materials["Air"]
+		radialu.add_cell(outside)
+		# Root Universe
+		root_cell = openmc.Cell(name="root cell")
+		root_cell.fill = radialu
+		root_cell.region = +x0 & +ymin & +zmin & -zmax & -right_refl_edge
+		ru.add_cell(root_cell)
+		self._geometry = openmc.Geometry()
+		self._geometry.root_universe = ru
+	
+	def make_plots(self):
+		p1 = openmc.Plot()
+		p1.color_by = "material"
+		p1.width = [RAD_MAJ*1.02]*2
+		p1.pixels = [1200, 1200]
+		p1.origin = [WIDTH/4, -WIDTH/4, 0]
+		return [p1]
+	
+	def export_to_xml(self):
+		folder_name = "radius{radius:.2f}_pitch{pitch:.2f}/".format(**vars(self))
+		if not os.path.isdir(folder_name):
+			os.mkdir(folder_name)
+		self._geometry.export_to_xml(folder_name + "geometry.xml")
+		mfile = openmc.Materials()
+		for mat in all_materials.values():
+			mfile.append(mat)
+		mfile.export_to_xml(folder_name + "materials.xml")
+		pfile = openmc.Plots()
+		pfile += self.make_plots()
+		# noinspection PyTypeChecker
+		for p in pfile:
+			if p.color_by == "material":
+				p.colors = colormap
+		pfile.export_to_xml(folder_name + "plots.xml")
+		sfile = openmc.Settings()
+		sfile.particles = 10000
+		sfile.batches = 50
+		sfile.inactive = 20
+		sfile.source = openmc.Source(space=Box([-RAD_MIN/2, -RAD_MAJ, -10], [RAD_MIN/2, 0, 10]))
+		sfile.export_to_xml(folder_name + "settings.xml")
+
+
+if __name__ == '__main__':
+	bar = Slice2D(1,3, "Zr4")
+	bar.build()
+	bar.export_to_xml()
