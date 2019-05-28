@@ -16,7 +16,7 @@ DR = 1.3**(1/3)
 # dimensions in cm
 WIDTH = 240
 GAP = 5
-STEEL_THICK = 17
+STEEL_THICK = 11
 # hexagon stuff
 RAD_MAJ = WIDTH/2
 RAD_MIN = RAD_MAJ/math.sqrt(3)

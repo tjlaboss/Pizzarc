@@ -5,8 +5,10 @@ all_materials = {}
 colormap = {}
 # Moderator at 10 MPa, 600 K
 water = openmc.Material(name="Water @ 10 MPa")
+#water.add_nuclide("H2", 2/3)#
 water.add_element("H", 2/3)
 water.add_nuclide("O16", 1/3)
+#water.add_element("B", 1.6E-3)
 water.set_density(density=0.49, units="g/cc")
 all_materials["Mod"] = water
 # Uranium metal (10% Moly by weight)
@@ -23,7 +25,7 @@ zr4.add_element('Cr', 0.0010, 'wo')
 zr4.add_element('Fe', 0.0021, 'wo')
 zr4.add_element('Zr', 0.98115, 'wo')
 zr4.add_element('Sn', 0.0145, 'wo')
-colormap[zr4] = "gray" #[0.8]*3
+colormap[zr4] = "gray"
 all_materials["Zr4"] = zr4
 # SS316 - Atlas Steels (worldstainless.com)
 ss = openmc.Material(name="Stainless Steel 316")
@@ -32,7 +34,7 @@ ss.add_element("Cr", 17, 'wo')
 ss.add_element("Mo", 2, 'wo')
 ss.add_element("Ni", 12, 'wo')
 ss.add_element("Fe", 69, 'wo')
-colormap[ss] = "darkgray" #[0.5]*3
+colormap[ss] = "darkgray"
 all_materials["SS316"] = ss
 # Plain old air
 air = openmc.Material(name="air")
@@ -48,4 +50,11 @@ copper.add_element("Cu", 1)
 copper.set_density("g/cc", 9)
 colormap[copper] = "orange"
 all_materials["Copper"] = copper
+# Boron carbide
+boron_carbide = openmc.Material(name="B4C")
+boron_carbide.add_nuclide("C0", 0.2)
+boron_carbide.add_element("B", 0.8)
+boron_carbide.set_density("g/cc", 1.8)
+colormap[boron_carbide] = "black"
+all_materials["B4C"] = boron_carbide
 
