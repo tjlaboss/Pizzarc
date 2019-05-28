@@ -18,6 +18,7 @@ class Pincell:
 		self.rgap = self._get_rgap()
 		self.rclad = CLAD_RATIOS[clad_type]*self.rgap
 		self.mod_mat = matdict["Mod"]
+		self.matdict = matdict
 	
 	def _get_rgap(self):
 		def solve_it(rg):
@@ -55,20 +56,36 @@ class Pincell:
 	
 
 class GuideTube:
-	def __init__(self, pincell):
+	def __init__(self, pincell, rod=False):
 		self.pincell = pincell
 		self.r_inner = pincell.rclad
 		self.r_outer = CLAD_RATIOS[pincell.clad_type]*self.r_inner
+		self.rod = rod
 		
 	
 	def build(self):
-		# All cylinders
 		icyl = openmc.ZCylinder(R=self.r_inner, name="Inside Tube")
 		ocyl = openmc.ZCylinder(R=self.r_outer, name="Tube Cylinder")
 		# Innermost ring: water area
 		iring = openmc.Cell()
 		iring.region = -icyl
-		iring.fill = self.pincell.mod_mat
+		if self.rod:
+			xcyl = openmc.ZCylinder(R=self.pincell.rfuel)
+			ycyl = openmc.ZCylinder(R=self.pincell.rgap)
+			xring = openmc.Cell()
+			xring.region = -xcyl
+			xring.fill = self.pincell.matdict["B4C"]
+			yring = openmc.Cell()
+			yring.region = +xcyl & -ycyl
+			yring.fill = self.pincell.matdict["SS316"]
+			zring = openmc.Cell()
+			zring.region = +ycyl
+			zring.fill = self.pincell.mod_mat
+			urod = openmc.Universe()
+			urod.add_cells((xring, yring, zring))
+			iring.fill = urod
+		else:
+			iring.fill = self.pincell.mod_mat
 		# Next ring: Tube
 		tring = openmc.Cell()
 		tring.region = +icyl & -ocyl

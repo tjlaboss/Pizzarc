@@ -8,7 +8,8 @@ from math import *
 
 
 class Slice2D:
-	def __init__(self, radius, pitch, clad_type, matdict=all_materials):
+	def __init__(self, radius, pitch, clad_type,
+	             rodded=False, matdict=all_materials):
 		assert clad_type in CLADS
 		self.radius = radius
 		self.pitch = pitch
@@ -16,7 +17,7 @@ class Slice2D:
 		self.matdict = matdict
 		self._geometry = None
 		self.pincell = Pincell(self.radius, self.clad_type, self.matdict)
-		self.gtube = GuideTube(self.pincell)
+		self.gtube = GuideTube(self.pincell, rodded)
 	
 	def get_lattice(self):
 		upin = self.pincell.build()
@@ -43,19 +44,27 @@ class Slice2D:
 		hlat.center = (0, -self.pitch*(len(unis) - 1), 0)
 		# Center row
 		unis[0][39] = ugtb
-		unis[6][21] = ugtb
-		unis[6][0] = ugtb
+		unis[4][27] = ugtb
+		unis[8][15] = ugtb
+		unis[9][0] = ugtb
+		unis[4][0] = ugtb
 		unis[0][0] = ugtb
 		# Next row
-		unis[0][33] = ugtb
-		unis[6][15] = ugtb
-		unis[6][6] = ugtb
+		unis[0][35] = ugtb
+		unis[4][23] = ugtb
+		unis[9][4] = ugtb
+		unis[8][11] = ugtb
+		unis[4][4] = ugtb
+		# Another row
+		unis[0][31] = ugtb
+		unis[4][19] = ugtb
+		unis[5][13] = ugtb
 		# Corner
 		unis[0][26] = ugtb
 		
 		hlat.universes = [unis]
 		hlat.outer = upin
-		#print(hlat.show_indices(hlat.num_rings))
+		print(hlat.show_indices(hlat.num_rings))
 		return hlat
 	
 	def build(self):
@@ -73,11 +82,21 @@ class Slice2D:
 		
 		ru = openmc.Universe(name="root universe")
 		radialu = openmc.Universe(name="radial universe")
-		# Right slice
+		lattice = self.get_lattice()
+		dist = RAD_MAJ - STEEL_THICK - sqrt(3)/2*self.pitch
+		right_inner_water = openmc.Plane(A=cos(pi/3), B=-cos(pi/6),
+		                                D=dist*cos(pi/6))
+		# Fueled area
 		inner = openmc.Cell()
-		inner.region = -right_inner_wall
-		inner.fill = self.get_lattice()
+		inner.region = -right_inner_water
+		inner.fill = lattice
 		radialu.add_cell(inner)
+		# Water buffer
+		buffer = openmc.Cell()
+		buffer.region = +right_inner_water & -right_inner_wall
+		buffer.fill = all_materials["Mod"]
+		radialu.add_cell(buffer)
+		# Reactor pressure vessel
 		rpv = openmc.Cell()
 		rpv.region = +right_inner_wall & -right_outer_wall
 		rpv.fill = all_materials["SS316"]
@@ -128,6 +147,6 @@ class Slice2D:
 
 
 if __name__ == '__main__':
-	bar = Slice2D(1,3, "Zr4")
+	bar = Slice2D(2, 8, "Zr4", rodded=True)
 	bar.build()
 	bar.export_to_xml()
